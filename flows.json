@@ -1,0 +1,406 @@
+[
+    {
+        "id": "b210ef03f37f4bb1",
+        "type": "tab",
+        "label": "Experimenting but more code",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "851d0dd361990e01",
+        "type": "cronplus",
+        "z": "b210ef03f37f4bb1",
+        "name": "",
+        "outputField": "payload",
+        "timeZone": "",
+        "storeName": "",
+        "commandResponseMsgOutput": "output1",
+        "defaultLocation": "",
+        "defaultLocationType": "default",
+        "outputs": 1,
+        "options": [
+            {
+                "name": "schedule1",
+                "topic": "topic1",
+                "payloadType": "num",
+                "payload": "90",
+                "expressionType": "cron",
+                "expression": "0 1 13 * * * *",
+                "location": "",
+                "offset": "0",
+                "solarType": "all",
+                "solarEvents": "sunrise,sunset"
+            }
+        ],
+        "x": 100,
+        "y": 400,
+        "wires": [
+            [
+                "4115b4e31bdc4fd2"
+            ]
+        ]
+    },
+    {
+        "id": "4115b4e31bdc4fd2",
+        "type": "template",
+        "z": "b210ef03f37f4bb1",
+        "name": "GetTibberPrices",
+        "field": "payload",
+        "fieldType": "msg",
+        "format": "handlebars",
+        "syntax": "mustache",
+        "template": "{\n  viewer {\n    homes {\n      currentSubscription{\n        priceInfo{\n          current{\n            total\n            startsAt\n          }\n          today {\n            total\n            startsAt\n          }\n          tomorrow {\n            total\n            startsAt\n          }\n        }\n      }\n    }\n  }\n}\n",
+        "output": "str",
+        "x": 360,
+        "y": 400,
+        "wires": [
+            [
+                "b3707d1e04896718"
+            ]
+        ]
+    },
+    {
+        "id": "b3707d1e04896718",
+        "type": "tibber-query",
+        "z": "b210ef03f37f4bb1",
+        "name": "RequestTibber",
+        "active": true,
+        "apiEndpointRef": "fc5dbcc08b364dfc",
+        "x": 580,
+        "y": 400,
+        "wires": [
+            [
+                "02099b39d2499ca0"
+            ]
+        ]
+    },
+    {
+        "id": "02099b39d2499ca0",
+        "type": "ps-receive-price",
+        "z": "b210ef03f37f4bb1",
+        "name": "Price Receiver",
+        "x": 800,
+        "y": 400,
+        "wires": [
+            [
+                "51fdb6d13d60a718",
+                "b89099516fbbfc32"
+            ]
+        ]
+    },
+    {
+        "id": "51fdb6d13d60a718",
+        "type": "function",
+        "z": "b210ef03f37f4bb1",
+        "name": "Find Most Expensive Hours",
+        "func": "//crete a slice of values for the 24 hour timeframe\nlet cheaphours = []\n\n// sort price array from low to high prices\ndate = new Date()\ncurrent_hour = date.getHours()\ncurrent_dayofmonth = date.getDate()\n\n//crete a slice of values for the 48 hour timeframe\nmsg.payload.priceData = msg.payload.priceData.slice(current_hour, 47)\n\nfor (var i in msg.payload.priceData) {\n    msg.payload.priceData[i].start = new Date(msg.payload.priceData[i].start)\n}\n\nglobal.set(\"PriceAray\", msg.payload.priceData)\n\n//sort that slice from low to high price\nsorted_prices = msg.payload.priceData\nsorted_prices.sort((a,b)=> a.value - b.value)\n\nglobal.set(\"LowestPrice_48H\", msg.payload.priceData[0].value)\nglobal.set(\"HighestPrice_48H\", msg.payload.priceData[msg.payload.priceData.length-1].value)\n\n// is the difference in prices big enough to load the battery \n// assumption is a difference of 25% to compensate the load and invert losses\n\n// fill array of objects where battery should be charged, uncharged or idle\nfor (let i = 0; i < msg.payload.priceData.length-1; i++) {\n    h = msg.payload.priceData[i].start.getHours()\n    d = msg.payload.priceData[i].start.getDate()\n    \n    if (msg.payload.priceData[i].value <= sorted_prices[3].value) {\n        hour_object = { \"hour\": h, \"day\": d, load: true, \"use\": false, \"idle\": false, \"price\": msg.payload.priceData[i].value, \"start\": msg.payload.priceData[i].start}\n    } else if (msg.payload.priceData[i].value > sorted_prices[3].value * 1.2) {\n        hour_object = { \"hour\": h, \"day\": d, load: false, \"use\": true, \"idle\": false, \"price\": msg.payload.priceData[i].value, \"start\": msg.payload.priceData[i].start}\n    } else {\n        hour_object = { \"hour\": h,\"day\": d, load: NaN, \"use\": NaN, \"idle\": true , \"price\": msg.payload.priceData[i].value, \"start\": msg.payload.priceData[i].start}\n    }\n    cheaphours.push(hour_object)\n}\n\nglobal.set(\"25HourPlanning\", cheaphours)\n\nmsg.payload = cheaphours\n\nreturn msg",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 400,
+        "y": 520,
+        "wires": [
+            [
+                "b89099516fbbfc32"
+            ]
+        ]
+    },
+    {
+        "id": "b89099516fbbfc32",
+        "type": "debug",
+        "z": "b210ef03f37f4bb1",
+        "name": "Planning Debug",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 880,
+        "y": 520,
+        "wires": []
+    },
+    {
+        "id": "b0faab1c8cec34b6",
+        "type": "cronplus",
+        "z": "b210ef03f37f4bb1",
+        "name": "",
+        "outputField": "payload",
+        "timeZone": "",
+        "storeName": "",
+        "commandResponseMsgOutput": "output1",
+        "defaultLocation": "",
+        "defaultLocationType": "default",
+        "outputs": 1,
+        "options": [
+            {
+                "name": "schedule1",
+                "topic": "topic1",
+                "payloadType": "num",
+                "payload": "90",
+                "expressionType": "cron",
+                "expression": "0 0 * * * *",
+                "location": "",
+                "offset": "0",
+                "solarType": "all",
+                "solarEvents": "sunrise,sunset"
+            }
+        ],
+        "x": 100,
+        "y": 580,
+        "wires": [
+            [
+                "6232b4bb7a45a9fc"
+            ]
+        ]
+    },
+    {
+        "id": "6232b4bb7a45a9fc",
+        "type": "function",
+        "z": "b210ef03f37f4bb1",
+        "name": "CheckEveryHour_load_or_use_or_idle",
+        "func": "let cheaphours = []\ncheaphours = global.get(\"25HourPlanning\", cheaphours)\n\n// sort price array from low to high prices\ndate = new Date()\ncurrent_hour = date.getHours()\ncurrent_dayofmonth = date.getDate()\n\nlet soc = 5\nlet soc_decision = []\n\nv_load_target_soc = 50\n\nv_currentsoc = global.get(\"ctx_currentsoc\")\n\n// when prices indicate to load the battery and the battery is above the target soc set the load target soc to the current soc.\n// This is to avoid usage in low price hours in case battery is above the load target soc.\nif (v_currentsoc > v_load_target_soc) {\n    v_load_target_soc = v_currentsoc\n}\n\n// iterate over the planning array to decide at the hour what status the system will be for the hour. \n// status could be load or use battery or idle battery by setting the target soc to the current soc.\nfor (let i = 0; i < cheaphours.length-1; i++) {\n    if (current_hour == cheaphours[i].hour && current_dayofmonth == cheaphours[i].day) {\n        if (cheaphours[i].load == true) {\n            decision = {\"current_hour\": current_hour, \"current_dayofmonth\": current_dayofmonth, \"decision\": \"load\", \"soc\": v_load_target_soc} \n        } else if (cheaphours[i].use == true) {\n            decision = {\"current_hour\": current_hour, \"current_dayofmonth\": current_dayofmonth, \"decision\": \"use\", \"soc\": 5} \n        } else {\n            decision = {\"current_hour\": current_hour, \"current_dayofmonth\": current_dayofmonth, \"decision\": \"idle\", \"soc\": v_currentsoc} \n        }\n    }\n}\n\nreturn {payload: decision}",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 370,
+        "y": 580,
+        "wires": [
+            [
+                "3d5042ab4d970ff9",
+                "bf0d59f56747c5bb"
+            ]
+        ]
+    },
+    {
+        "id": "246374bcc5576fdd",
+        "type": "victron-input-vebus",
+        "z": "b210ef03f37f4bb1",
+        "service": "com.victronenergy.vebus/288",
+        "path": "/Soc",
+        "serviceObj": {
+            "service": "com.victronenergy.vebus/288",
+            "name": "9"
+        },
+        "pathObj": {
+            "path": "/Soc",
+            "type": "float",
+            "name": "VE.Bus state of charge (%)"
+        },
+        "name": "",
+        "onlyChanges": true,
+        "roundValues": "0",
+        "x": 140,
+        "y": 660,
+        "wires": [
+            [
+                "b581ef0667d872d4",
+                "5d1873256ea1b07d"
+            ]
+        ]
+    },
+    {
+        "id": "b581ef0667d872d4",
+        "type": "function",
+        "z": "b210ef03f37f4bb1",
+        "name": "SOC to ctx_currentsoc",
+        "func": "global.set(\"ctx_currentsoc\", msg.payload)\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 420,
+        "y": 640,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "3d5042ab4d970ff9",
+        "type": "function",
+        "z": "b210ef03f37f4bb1",
+        "name": "SOC to Victron",
+        "func": "soc = msg.payload.soc\n\nreturn {payload: soc}",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 660,
+        "y": 580,
+        "wires": [
+            [
+                "33e0a479698da5ac",
+                "6d1eef62b52b6446",
+                "bf0d59f56747c5bb"
+            ]
+        ]
+    },
+    {
+        "id": "33e0a479698da5ac",
+        "type": "victron-output-ess",
+        "z": "b210ef03f37f4bb1",
+        "service": "com.victronenergy.settings",
+        "path": "/Settings/CGwacs/BatteryLife/MinimumSocLimit",
+        "serviceObj": {
+            "service": "com.victronenergy.settings",
+            "name": "Venus settings"
+        },
+        "pathObj": {
+            "path": "/Settings/CGwacs/BatteryLife/MinimumSocLimit",
+            "type": "integer",
+            "name": "Minimum Discharge SOC (%)",
+            "writable": true
+        },
+        "name": "",
+        "onlyChanges": false,
+        "x": 980,
+        "y": 580,
+        "wires": []
+    },
+    {
+        "id": "6d1eef62b52b6446",
+        "type": "ui_chart",
+        "z": "b210ef03f37f4bb1",
+        "name": "",
+        "group": "d8bf146839da4ac8",
+        "order": 3,
+        "width": 0,
+        "height": 0,
+        "label": "Target SOC",
+        "chartType": "line",
+        "legend": "false",
+        "xformat": "HH:mm:ss",
+        "interpolate": "linear",
+        "nodata": "",
+        "dot": true,
+        "ymin": "",
+        "ymax": "",
+        "removeOlder": "2",
+        "removeOlderPoints": "",
+        "removeOlderUnit": "86400",
+        "cutout": 0,
+        "useOneColor": false,
+        "useUTC": false,
+        "colors": [
+            "#1f77b4",
+            "#aec7e8",
+            "#ff7f0e",
+            "#2ca02c",
+            "#98df8a",
+            "#d62728",
+            "#ff9896",
+            "#9467bd",
+            "#c5b0d5"
+        ],
+        "outputs": 1,
+        "useDifferentColor": false,
+        "className": "",
+        "x": 690,
+        "y": 700,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "5d1873256ea1b07d",
+        "type": "ui_chart",
+        "z": "b210ef03f37f4bb1",
+        "name": "",
+        "group": "d8bf146839da4ac8",
+        "order": 3,
+        "width": 0,
+        "height": 0,
+        "label": "Current SOC",
+        "chartType": "line",
+        "legend": "false",
+        "xformat": "HH:mm:ss",
+        "interpolate": "linear",
+        "nodata": "",
+        "dot": true,
+        "ymin": "",
+        "ymax": "",
+        "removeOlder": "2",
+        "removeOlderPoints": "",
+        "removeOlderUnit": "86400",
+        "cutout": 0,
+        "useOneColor": false,
+        "useUTC": false,
+        "colors": [
+            "#1f77b4",
+            "#aec7e8",
+            "#ff7f0e",
+            "#2ca02c",
+            "#98df8a",
+            "#d62728",
+            "#ff9896",
+            "#9467bd",
+            "#c5b0d5"
+        ],
+        "outputs": 1,
+        "useDifferentColor": false,
+        "className": "",
+        "x": 390,
+        "y": 700,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "bf0d59f56747c5bb",
+        "type": "debug",
+        "z": "b210ef03f37f4bb1",
+        "name": "Set SOC Debug",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 900,
+        "y": 700,
+        "wires": []
+    },
+    {
+        "id": "fc5dbcc08b364dfc",
+        "type": "tibber-api-endpoint",
+        "queryUrl": "https://api.tibber.com/v1-beta/gql",
+        "feedConnectionTimeout": "30",
+        "feedTimeout": "60",
+        "queryRequestTimeout": "30",
+        "name": "TibberAccessToken"
+    },
+    {
+        "id": "d8bf146839da4ac8",
+        "type": "ui_group",
+        "name": "Standard",
+        "tab": "e84ebf67c06ff780",
+        "order": 1,
+        "disp": true,
+        "width": "12",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "e84ebf67c06ff780",
+        "type": "ui_tab",
+        "name": "Home",
+        "icon": "dashboard",
+        "disabled": false,
+        "hidden": false
+    }
+]
